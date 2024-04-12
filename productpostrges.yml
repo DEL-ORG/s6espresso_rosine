@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shoproductcatalog-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: shoproductcatalog
+      version: v1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: shoproductcatalog
+        version: v1
+    spec:
+      containers:
+      - name: shoproductcatalog-container
+        image: rosinebelle/shoproductcatalog:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: POSTGRES_HOST
+          value: postgres-repmgr-service
+        - name: POSTGRES_PORT
+          value: "5432"
+        - name: POSTGRES_DB
+          value: postgres
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: postgres-configmap
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: POSTGRES_PASSWORD
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: espresso-shop-product-catalog-svc
+spec:
+  selector:
+    app: shoproductcatalog
+    version: v1
+  ports:
+    - protocol: TCP
+      port: 8091
+      targetPort: 80
+
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shoproductcatalog-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shoproductcatalog-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shoproductcatalog-service-account
+
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shoproductcatalog-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: shoproductcatalog
+

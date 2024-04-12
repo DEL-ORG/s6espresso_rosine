@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop-web-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: shop-web
+  template:
+    metadata:
+      labels:
+        app: shop-web
+        version: v1
+    spec:
+      serviceAccountName: shop-web-service-account
+      containers:
+      - name: shop-web-container
+        image: s5carles/shop-web:v1.0.0
+        env:
+        - name: ProductCatalogUrl
+          value: "http://espresso-shop-product-catalog-svc:8091"
+        - name: ReviewsUrl
+          value: "http://shop:8092"
+        ports:
+        - containerPort: 80
+        # Commented out livenessProbe
+        # livenessProbe:
+        #   httpGet:
+        #     path: /healthz
+        #     port: 80
+        #   initialDelaySeconds: 10
+        #   periodSeconds: 15
+        # Commented out readinessProbe
+        # readinessProbe:
+        #   httpGet:
+        #     path: /ready
+        #     port: 80
+        #   initialDelaySeconds: 5
+        #   periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shop-web-service
+spec:
+  type: NodePort
+  selector:
+    app: shop-web
+    version: v1
+  ports:
+    - protocol: TCP
+      port: 8090
+      targetPort: 80
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: shop-web-service-account
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: shop-web-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shop-web-deployment
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 50
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: shop-web-pdb
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: shop-web
